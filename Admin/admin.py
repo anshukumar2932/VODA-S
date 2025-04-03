@@ -1,7 +1,5 @@
 import os
-import csv
-import hashlib
-import random
+import pandas as pd
 import google.generativeai as genai
 
 # Configure Gemini API
@@ -9,36 +7,34 @@ GEMINI_API_KEY = "*****"  # Replace with your actual API key
 genai.configure(api_key=GEMINI_API_KEY)
 
 def extract_results():
-    """Extract verification results from CSV."""
+    """Extract verification results from CSV using pandas."""
     input_path = os.path.join("csv_files", "verification_results.csv")
     
     if not os.path.exists(input_path):
         print(f"File not found: {input_path}")
+        return pd.DataFrame()
+    
+    df = pd.read_csv(input_path, dtype=str)
+    print(f"Extracted {len(df)} records from {input_path}")
+    print(df.head()) 
+    return df
+
+def checker():
+    """Check whether file name or source is pirated using Gemini API and write to a file."""
+    df = extract_results()
+    if df.empty:
         return []
     
-    with open(input_path, mode='r', encoding='utf-8') as file:
-        reader = csv.DictReader(file)
-        results = [row for row in reader]
+    pirated_files = df[~df["gemini_verification"].astype(str).str.strip().isin(["0", "1"])].head(7)
     
-    print(f"Extracted {len(results)} records from {input_path}")
-    print(results)
-    return results
-def checker():
-    "It check whether file name or source is pirated using Gemini api"
-    results = extract_results()
-    pirated_files = []
-    count=0
-    for record in results:
-        count+=1
-        if count>=8:
-            break
-        gemini_verification = str(record.get("gemini_verification", "")).strip()
-
-        if gemini_verification not in ["0", "1"]:
-            pirated_files.append(record)
+    if not pirated_files.empty:
+        output_path = os.path.join("csv_files", "pirated_files.csv")
+        pirated_files.to_csv(output_path, index=False)
+        print(f"Identified {len(pirated_files)} potentially pirated files. Results saved to {output_path}.")
+    else:
+        print("No pirated files identified.")
     
-    print(f"Identified {len(pirated_files)} potentially pirated files.")
-    return pirated_files
+    return pirated_files.to_dict(orient='records')
 
 extract_results()
 print(checker())
