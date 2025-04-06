@@ -1,84 +1,172 @@
 import os
-import csv
-import hashlib
-import random
-import google.generativeai as genai
+import google.generativeai as gemini
+import pandas as pd
+import re
 
 # Configure Gemini API
-GEMINI_API_KEY = "******"  # Replace with your actual API key
-genai.configure(api_key=GEMINI_API_KEY)
+GEMINI_API_KEY = "---------"  # Replace with your actual API key
+gemini.configure(api_key=GEMINI_API_KEY)
+base_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Internet"))
+verification_database = os.path.abspath(os.path.join(os.getcwd(), "datasets", "verification_database.csv"))
+key_database = os.path.abspath(os.path.join(os.getcwd(), "datasets", "key_database.csv"))
+detection_database_path = os.path.abspath(os.path.join(os.getcwd(), "datasets", "detection_database.csv"))
 
-dataset_path = os.path.join("csv_files", "dataset.csv")
-text_files_path = "text_files"
+class VerifiDataLoader:
+    def __init__(self, base_dir=".."):
+        self.base_dir = os.path.abspath(base_dir)
+        self.dataset_path = verification_database
+        self.data = None
 
-def compute_sha256(text):
-    """Compute SHA-256 hash for content."""
-    return hashlib.sha256(text.encode()).hexdigest()
+    def load_data(self):
+        try:
+            self.data = pd.read_csv(self.dataset_path)
+            return self.data
+        except FileNotFoundError:
+            print(f"[ERROR] verification_database.csv not found at {self.dataset_path}")
+            return None
+        except Exception as e:
+            print(f"[ERROR] An error occurred while loading verification_database.csv: {e}")
+            return None
 
-def load_dataset():
-    """Load dataset hashes, sources, and labels from CSV."""
-    dataset = {}
-    with open(dataset_path, mode='r', encoding='utf-8') as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            dataset[row["hash"]] = {"source": row["source"], "label": row["label"]}
-    return dataset
+def read_raw_txts(verifi_df, internet_folder=base_folder):
+    raw_data = []
+    for index, row in verifi_df.iterrows():
+        filename = row[0]  # column index 0: filename
+        source = row[1]    # column index 1: source (subfolder)
 
-def check_with_gemini(content):
-    """Use Gemini AI to check if the content is pirated."""
+        file_path = os.path.join(internet_folder, source, filename)
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                raw_data.append({
+                    'filename': filename,
+                    'source': source,
+                    'content': content
+                })
+        except FileNotFoundError:
+            print(f"[WARN] File not found: {file_path}")
+        except Exception as e:
+            print(f"[ERROR] Failed to read {file_path}: {e}")
+    return raw_data
+
+class KeyDataLoader:
+    def __init__(self, base_dir=".."):
+        self.base_dir = os.path.abspath(base_dir)
+        self.dataset_path = key_database
+        self.data = None
+    def load_data(self):
+        try:
+            self.data = pd.read_csv(self.dataset_path)
+            return self.data
+        except FileNotFoundError:
+            print(f"[ERROR] verification_database.csv not found at {self.dataset_path}")
+            return None
+        except Exception as e:
+            print(f"[ERROR] An error occurred while loading verification_database.csv: {e}")
+            return None
+
+
+def gemini_checks_source(source_value, legal_list, illegal_list):
+    model = gemini.GenerativeModel("gemini-2.0-flash")
+    prompt1 = f"check if the {source_value} is in either in {legal_list} or {illegal_list}. If it's in legal, then give only 0, If in illegal, then give 1 and if not in either then give 2. DO NOT GIVE ANYTHING ELSE other than number in output"
+    response = model.generate_content(prompt1)
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(f"Is this text legally distributed? Answer 0 for yes, 1 for no, or 2 for maybe: {content}")
-        return response.text.strip()
+        result_source = response.text.strip() if hasattr(response, 'text') else response.candidates[0].content.strip()
+        if result_source in ["0", "1", "2"]:
+            return int(result_source)
+        else:
+            print(f"Unexpected response from API: {result_source}")
+            return 0  # Default to 'not pirated' if response is unclear
     except Exception as e:
-        print (f"Error with Gemini API: {e}")
-        return f"Error with Gemini API: {e}"
+        print(f"Error processing response: {e}")
+        return 0  # Default to 'not pirated' in case of error
 
-def verify_files():
-    """Randomly select 10 files and verify against dataset and Gemini AI."""
-    dataset_hashes = load_dataset()
-    results = []
+def gemini_checks_key(key,keyidentifier):
+    model = gemini.GenerativeModel("gemini-2.0-flash")
+    prompt2 = f"Just give numerical output. check if the key_identity: {key} is in either in {keyidentifier} or not. Return only 1 for true and 0 for False"
+    response = model.generate_content(prompt2)
+    try:
+        result_key = response.text.strip() if hasattr(response, 'text') else response.candidates[0].content.strip()
+        if result_key in ["0", "1"]:
+            return int(result_key)
+        else:
+            print(f"Unexpected response from API: {result_key}")
+            return 0  # Default to 'not pirated' if response is unclear
+    except Exception as e:
+        print(f"Error processing response: {e}")
+        return 0  # Default to 'not pirated' in case of error
 
-    # Get a list of all text files and randomly pick 10
-    all_files = os.listdir(text_files_path)
-    selected_files = random.sample(all_files, min(10, len(all_files)))
 
-    for file_name in selected_files:
-        file_path = os.path.join(text_files_path, file_name)
+def key_extractor(filepath):
+    try:
+        with open(filepath, 'r', encoding='utf-8') as file:
+            for line in file:
+                if line.startswith("key_identity:"):
+                    return line.split(":", 1)[1].strip()
+        return None
+    except FileNotFoundError:
+        print(f"File not found: {filepath}")
+        return None
+    except Exception as e:
+        print(f"Error reading file {filepath}: {e}")
+        return None
 
-        with open(file_path, "r", encoding="utf-8") as file:
-            content = file.read()
 
-        file_hash = compute_sha256(content)
 
-        # Check dataset for a match
-        source = dataset_hashes.get(file_hash, {}).get("source", "Unknown")
-        label = dataset_hashes.get(file_hash, {}).get("label", "Unverified")
+def extract_key_identity(file_path):
+    with open(file_path, 'r') as file:
+        for line in file:
+            if line.startswith('key_identity:'):
+                return line.split(':', 1)[1].strip()  # Get the part after the colon and strip any whitespace
+    
+def Detection():
+    filename_flag = []
+    source_flag = []
+    result_source_list = []
+    legal_list = KeyDataFrame['legalsource'].dropna().unique().tolist()
+    illegal_list = KeyDataFrame['illegalsource'].dropna().unique().tolist()
+    for i in range(len(VerifiDataFrame)):
+        source_value = VerifiDataFrame.loc[i, 'source']
+        file = VerifiDataFrame.loc[i, 'filename']
+        result = gemini_checks_source(source_value,legal_list,illegal_list)
+        print(result)
+        if result == 0:
+            """The File is legal hence Ignored"""
+            print("file is legal hence ignored")
+        if result == 1:
+            """The file is illegal hence proceeding"""
+            filepath = os.path.abspath(os.path.join(os.getcwd(), "Internet", source_value, file))
+            key = key_extractor(filepath)
+            keyidentifier = KeyDataFrame['keyidentifier'].dropna().tolist()
+            result2 = gemini_checks_key(key,keyidentifier)
+            print("pirated!!!")
+            if result2 == 0:
+                """The file is ignored as it is not ours"""
+            if result2 == 1:
+                """The file is ours and on the pirated site"""
+                filename_flag.append(file)
+                source_flag.append(source_value)
+        if result == 2:
+            print("It's nothing")
+    Detected_DataFrame = pd.DataFrame({'flagged_files': filename_flag,'file_source': source_flag})
+    Detected_DataFrame.to_csv(detection_database_path, index=False)
+veri_loader = VerifiDataLoader()
+VerifiDataFrame = veri_loader.load_data()
+key_loader = KeyDataLoader()
+KeyDataFrame = key_loader.load_data()
 
-        # Gemini AI verification
-        gemini_result = check_with_gemini(content)
+""" if VerifiDataFrame is not None:
+    print(VerifiDataFrame)
 
-        results.append({
-            "file_name": file_name,
-            "hash": file_hash,
-            "source": source,
-            "dataset_label": label,
-            "gemini_verification": gemini_result
-        })
+if VerifiDataFrame is not None:
+    results = read_raw_txts(VerifiDataFrame)
+    for item in results[:3]:
+        print("\n---")
+        print(f"File: {item['filename']} from {item['source']}")
+        print("Content Preview:")
+        print(item['content'])
+"""
+# prompt1 = (f"""Given the website name (source): "{source}", determine its legality based on the following lists: Legal sources: {legal_list} Illegal sources: {illegal_list}, Return 0 if the source is clearly in the legal category, 1 if the source is clearly illegal, 2 if it's unclassified (not in either list or unclear).""")
 
-    return results
 
-def save_results(results):
-    """Save verification results to CSV."""
-    output_path = os.path.join("csv_files", "verification_results.csv")
-
-    with open(output_path, mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.DictWriter(file, fieldnames=["file_name", "hash", "source", "dataset_label", "gemini_verification"])
-        writer.writeheader()
-        writer.writerows(results)
-
-    print(f" Verification results saved in {output_path}")
-
-# Run verification for 10 random files
-results = verify_files()
-save_results(results)
+Detection()
