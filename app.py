@@ -1,16 +1,29 @@
-from flask import Flask, render_template
-from flask_socketio import SocketIO
+import os
+import time
 import threading
 import subprocess
-import time
 
-app = Flask(__name__)
+from flask import Flask, send_file, send_from_directory, render_template
+from flask_socketio import SocketIO
+
+app = Flask(__name__, static_folder='web')
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+# ------------------- ROUTES -------------------
 
-@app.route('/')
+@app.route("/")
 def index():
-    return render_template('dashboard.html')
+    return send_file('templates/dashboard.html')
+
+@app.route("/dashboard")
+def dashboard():
+    return render_template("dashboard.html")
+
+@app.route('/<path:path>')
+def serve_static(path):
+    return send_from_directory('templates', path)
+
+# ------------------- SCRIPT LOOP -------------------
 
 def run_script_loop(name, path, delay=20):
     while True:
@@ -37,16 +50,16 @@ def run_script_loop(name, path, delay=20):
         socketio.emit('log', {'stage': name, 'message': f'Waiting {delay} sec before next run...'})
         time.sleep(delay)
 
-# @socketio.on('start_download')
-# def handle_start(data):
-#     # Optional: could be used to manually trigger scripts, but not needed here
-    pass
+# ------------------- MAIN -------------------
 
-if __name__ == '__main__':
-    
+if __name__ == "__main__":
+    # Start script loops in background
     threading.Thread(target=run_script_loop, args=('Admin', 'admin/admin.py'), daemon=True).start()
+    time.sleep(10)
     threading.Thread(target=run_script_loop, args=('Detection', 'detection/classD.py'), daemon=True).start()
+    time.sleep(10)
     threading.Thread(target=run_script_loop, args=('Verification', 'verification/classV.py'), daemon=True).start()
+    time.sleep(10)
     threading.Thread(target=run_script_loop, args=('Observation', 'observation/classO.py'), daemon=True).start()
-
+    time.sleep(10)
     socketio.run(app, debug=True)
