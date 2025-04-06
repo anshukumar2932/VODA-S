@@ -11,33 +11,41 @@ socketio = SocketIO(app)
 def index():
     return render_template('dashboard.html')
 
-@socketio.on('start_download')
-def handle_download(data):
-    query = data['query']
-    threading.Thread(target=run_download_task, args=(query,)).start()
+def run_script_loop(name, path, delay=10):
+    while True:
+        socketio.emit('log', {'stage': name, 'message': f'Running {path}...'})
 
-def run_download_task(query):
-    socketio.emit('log', {'stage': 'Observation', 'message': f'Starting observation script for: {query}'})
+        try:
+            result = subprocess.run(
+                ['python3', path],
+                capture_output=True,
+                text=True
+            )
+            output = result.stdout
+            error = result.stderr
 
-    try:
-        result = subprocess.run(
-            ['python', 'observation/analyse.py'],  # You can pass args if needed
-            capture_output=True,
-            text=True
-        )
-        output = result.stdout
-        error = result.stderr
+            if output:
+                for line in output.splitlines():
+                    socketio.emit('log', {'stage': name, 'message': line})
+            if error:
+                socketio.emit('log', {'stage': f'{name}-Error', 'message': error})
 
-        if output:
-            for line in output.splitlines():
-                socketio.emit('log', {'stage': 'Observation', 'message': line})
-        if error:
-            socketio.emit('log', {'stage': 'Error', 'message': error})
+        except Exception as e:
+            socketio.emit('log', {'stage': f'{name}-Exception', 'message': str(e)})
 
-    except Exception as e:
-        socketio.emit('log', {'stage': 'Error', 'message': str(e)})
+        socketio.emit('log', {'stage': name, 'message': f'Waiting {delay} sec before next run...'})
+        time.sleep(delay)
 
-    socketio.emit('log', {'stage': 'Observation', 'message': 'Observation task completed.'})
+# @socketio.on('start_download')
+# def handle_start(data):
+#     # Optional: could be used to manually trigger scripts, but not needed here
+    pass
 
 if __name__ == '__main__':
+    
+    threading.Thread(target=run_script_loop, args=('Admin', 'Admin/admin.py'), daemon=True).start()
+    threading.Thread(target=run_script_loop, args=('Detection', 'Detection/classD.py'), daemon=True).start()
+    threading.Thread(target=run_script_loop, args=('Verification', 'Verification/classV.py'), daemon=True).start()
+    threading.Thread(target=run_script_loop, args=('Observation', 'observation/classO.py'), daemon=True).start()
+
     socketio.run(app, debug=True)

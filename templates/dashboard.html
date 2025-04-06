@@ -15,7 +15,13 @@
             color: #333;
         }
 
-        #log {
+        .log-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .terminal {
             background: #1e1e1e;
             color: #d4d4d4;
             padding: 15px;
@@ -49,30 +55,66 @@
             background-color: #0056b3;
         }
 
+        h2 {
+            margin-bottom: 10px;
+            font-size: 20px;
+        }
     </style>
 </head>
 <body>
-    <h1>📊 VODA-S: Observation Dashboard</h1>
+    <h1>VODA-S: Observation Dashboard</h1>
 
-    <button onclick="startObservation()">▶️ Run Observation</button>
+    <button onclick="startObservation()">Run Observation</button>
 
-    <div id="log"></div>
+    <div class="log-container">
+        <div>
+            <h2>Admin</h2>
+            <div id="log-admin" class="terminal"></div>
+        </div>
+        <div>
+            <h2>Detection</h2>
+            <div id="log-detection" class="terminal"></div>
+        </div>
+        <div>
+            <h2>Verification</h2>
+            <div id="log-verification" class="terminal"></div>
+        </div>
+        <div>
+            <h2>Observation</h2>
+            <div id="log-observation" class="terminal"></div>
+        </div>        
+    </div>
 
     <script>
         const socket = io();
 
         function startObservation() {
-            document.getElementById("log").innerHTML = "";  // clear previous logs
-            socket.emit('start_download', { query: 'auto' }); // or pass any real param
+            document.getElementById("log-admin").innerHTML = "";
+            document.getElementById("log-detection").innerHTML = "";
+            document.getElementById("log-verification").innerHTML = "";
+            socket.emit('start_download', { query: 'auto' });
         }
 
         socket.on('log', function(data) {
-            const logDiv = document.getElementById("log");
-            const logLine = document.createElement("p");
-            logLine.classList.add("log-line");
-            logLine.innerHTML = `<span class="stage">[${data.stage}]</span> ${data.message}`;
-            logDiv.appendChild(logLine);
-            logDiv.scrollTop = logDiv.scrollHeight;  // auto-scroll to bottom
+            let targetLog = null;
+
+            if (data.stage.startsWith('Admin')) {
+                targetLog = document.getElementById("log-admin");
+            } else if (data.stage.startsWith('Detection')) {
+                targetLog = document.getElementById("log-detection");
+            } else if (data.stage.startsWith('Verification')) {
+                targetLog = document.getElementById("log-verification");
+            } else if (data.stage.startsWith('Observation')) {
+                targetLog = document.getElementById("log-observation");
+            }
+            
+            if (targetLog) {
+                const logLine = document.createElement("p");
+                logLine.classList.add("log-line");
+                logLine.innerHTML = `<span class="stage">[${data.stage}]</span> ${data.message}`;
+                targetLog.appendChild(logLine);
+                targetLog.scrollTop = targetLog.scrollHeight;
+            }
         });
     </script>
 </body>
