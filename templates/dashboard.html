@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>VODA-S Observation Dashboard</title>
+    <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        #log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            height: 400px;
+            overflow-y: scroll;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            font-family: monospace;
+        }
+
+        .log-line {
+            margin: 0;
+        }
+
+        .stage {
+            color: #6dd5ed;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+    </style>
+</head>
+<body>
+    <h1>📊 VODA-S: Observation Dashboard</h1>
+
+    <button onclick="startObservation()">▶️ Run Observation</button>
+
+    <div id="log"></div>
+
+    <script>
+        const socket = io();
+
+        function startObservation() {
+            document.getElementById("log").innerHTML = "";  // clear previous logs
+            socket.emit('start_download', { query: 'auto' }); // or pass any real param
+        }
+
+        socket.on('log', function(data) {
+            const logDiv = document.getElementById("log");
+            const logLine = document.createElement("p");
+            logLine.classList.add("log-line");
+            logLine.innerHTML = `<span class="stage">[${data.stage}]</span> ${data.message}`;
+            logDiv.appendChild(logLine);
+            logDiv.scrollTop = logDiv.scrollHeight;  // auto-scroll to bottom
+        });
+    </script>
+</body>
+</html>
