@@ -2,9 +2,11 @@ import os
 import pandas as pd
 import google.generativeai as gemini
 from api_store import api
+import time
 
-gemini.configure(api_key=(api))
+gemini.configure(api_key="AIzaSyDarsGu_YMbE6qQbNblRPO9pplAeKhYGiI")
 
+time.sleep(2)
 # Paths
 base_folder = os.path.abspath(os.path.join(os.getcwd(), "Internet"))
 database_file = os.path.abspath(os.path.join(os.getcwd(), "datasets", "observation_database.csv"))
@@ -31,6 +33,7 @@ def check_piracy(content, moviename, expected_content_df):
     model = gemini.GenerativeModel("gemini-2.0-flash")
     response = model.generate_content(prompt)
     print(f"[CLASS_V>>>VERFYING]: Checking the current file {moviename} for the content...]")
+    time.sleep(1)
     try:
         result_text = response.text.strip() if hasattr(response, 'text') else response.candidates[0].content.strip()
         if result_text in ["0", "1"]:
@@ -57,13 +60,10 @@ for _, row in observation_df.iterrows():
         # Check piracy using content and moviename
         piracy_flag = check_piracy(content, moviename, expected_content_df)
 
-        if piracy_flag == 1:
-            print(f"[CLASS_V>>>VERIFYING]: The file {moviename} is SUSPICIOUS. Sending for Detection!!!")
+        if piracy_flag:
             verified_files.append([filename, source])
-        else:
-            print(f"[CLASS_V>>>VERIFYING]: The file {moviename} is SAFE. Ignoring...")
-
 # Save results
 verified_df = pd.DataFrame(verified_files, columns=["filename", "source"])
 verified_df.to_csv(verification_output, index=False)
 print("Verification process completed and saved.")
+time.sleep(2)
