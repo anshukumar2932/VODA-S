@@ -1,7 +1,6 @@
 import os
 import pandas as pd
 import google.generativeai as gemini
-from api_store import api
 import time
 
 gemini.configure(api_key="AIzaSyDarsGu_YMbE6qQbNblRPO9pplAeKhYGiI")
@@ -60,8 +59,13 @@ for _, row in observation_df.iterrows():
         # Check piracy using content and moviename
         piracy_flag = check_piracy(content, moviename, expected_content_df)
 
-        if piracy_flag:
+        if piracy_flag == 1:
+            print(f"[CLASS_V>>>VERIFYING]: The file {moviename} is SUSPICIOUS. Sending for Detection!!!")
+            time.sleep(1)
             verified_files.append([filename, source])
+        else:
+            print(f"[CLASS_V>>>VERIFYING]: The file {moviename} is SAFE. Ignoring...")
+            time.sleep(1)
 # Save results
 verified_df = pd.DataFrame(verified_files, columns=["filename", "source"])
 verified_df.to_csv(verification_output, index=False)

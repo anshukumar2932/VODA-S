@@ -2,9 +2,11 @@ import os
 import google.generativeai as gemini
 import pandas as pd
 import re
-from api_store import api
+import time
 
-gemini.configure(api_key=(api))
+def wait():
+    time.sleep(3)
+gemini.configure(api_key="AIzaSyA-cwP57q6xPa7W5f6s16qKnksv7BRmv1A")
 
 base_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Internet"))
 verification_database = os.path.abspath(os.path.join(os.getcwd(), "datasets", "verification_database.csv"))
@@ -72,6 +74,8 @@ def gemini_checks_source(source_value, legal_list, illegal_list):
     prompt1 = f"check if the {source_value} is in either in {legal_list} or {illegal_list}. If it's in legal, then give only 0, If in illegal, then give 1 and if not in either then give 2. DO NOT GIVE ANYTHING ELSE other than number in output"
     response = model.generate_content(prompt1)
     try:
+        print(f"[CLASS-D>>>DETECTING]: Checking the current file...")
+        wait()
         result_source = response.text.strip() if hasattr(response, 'text') else response.candidates[0].content.strip()
         if result_source in ["0", "1", "2"]:
             return int(result_source)
@@ -133,18 +137,23 @@ def Detection():
         print(result)
         if result == 0:
             """The File is legal hence Ignored"""
-            print("file is legal hence ignored")
+            print(f"[CLASS-D>>>DETECTING]: The file {file} is from LEGAL source. Hence Ignored...")
+            wait()
         if result == 1:
             """The file is illegal hence proceeding"""
+            print(f"[CLASS-D>>>DETECTING]: The file {file} is from ILLEGAL source. Proceeding to check key...")
+            wait()
             filepath = os.path.abspath(os.path.join(os.getcwd(), "Internet", source_value, file))
             key = key_extractor(filepath)
             keyidentifier = KeyDataFrame['keyidentifier'].dropna().tolist()
             result2 = gemini_checks_key(key,keyidentifier)
-            print("pirated!!!")
             if result2 == 0:
                 """The file is ignored as it is not ours"""
+                print(f"[CLASS-D>>>DETECTING]: The file {file} has unrecognized/missing KEY IDENTIFIER. Ignoring...")
+                wait()
             if result2 == 1:
-                """The file is ours and on the pirated site"""
+                print(f"[CLASS-D>>>DETECTING]: The file {file} contains KEY IDENTIFIER. Flagging for Admin!!!")
+                wait()
                 filename_flag.append(file)
                 source_flag.append(source_value)
         if result == 2:
@@ -157,6 +166,7 @@ veri_loader = VerifiDataLoader()
 VerifiDataFrame = veri_loader.load_data()
 key_loader = KeyDataLoader()
 KeyDataFrame = key_loader.load_data()
+
 
 """ if VerifiDataFrame is not None:
     print(VerifiDataFrame)
@@ -173,3 +183,4 @@ if VerifiDataFrame is not None:
 
 
 Detection()
+time.sleep(4)
