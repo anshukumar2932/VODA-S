@@ -5,13 +5,14 @@ import subprocess
 import time
 
 app = Flask(__name__)
-socketio = SocketIO(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
 
 @app.route('/')
 def index():
     return render_template('dashboard.html')
 
-def run_script_loop(name, path, delay=10):
+def run_script_loop(name, path, delay=20):
     while True:
         socketio.emit('log', {'stage': name, 'message': f'Running {path}...'})
 
@@ -43,9 +44,9 @@ def run_script_loop(name, path, delay=10):
 
 if __name__ == '__main__':
     
-    threading.Thread(target=run_script_loop, args=('Admin', 'Admin/admin.py'), daemon=True).start()
-    threading.Thread(target=run_script_loop, args=('Detection', 'Detection/classD.py'), daemon=True).start()
-    threading.Thread(target=run_script_loop, args=('Verification', 'Verification/classV.py'), daemon=True).start()
+    threading.Thread(target=run_script_loop, args=('Admin', 'admin/admin.py'), daemon=True).start()
+    threading.Thread(target=run_script_loop, args=('Detection', 'detection/classD.py'), daemon=True).start()
+    threading.Thread(target=run_script_loop, args=('Verification', 'verification/classV.py'), daemon=True).start()
     threading.Thread(target=run_script_loop, args=('Observation', 'observation/classO.py'), daemon=True).start()
 
     socketio.run(app, debug=True)

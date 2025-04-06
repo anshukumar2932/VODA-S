@@ -1,13 +1,14 @@
 import os
 import pandas as pd
 import google.generativeai as gemini
+from api_store import api
 
-gemini.configure(api_key="VODA-S")
+gemini.configure(api_key=(api))
 
 def analyze_filename_with_nlp(filename):
     """
-    Uses NLP to determine if the filename suggests pirated content.
-    Returns 1 (pirated) or 0 (not pirated).
+    Uses NLP to check if the given filename suggests pirated content.
+    Returns 1 for potentially pirated, 0 if not.
     """
     model = gemini.GenerativeModel("gemini-2.0-flash")
     response = model.generate_content(f"Does this filename indicate pirated content? Answer only 1 for Yes, 0 for No: {filename} ignore .txt extension as it's a test to detect filename.")
@@ -16,7 +17,6 @@ def analyze_filename_with_nlp(filename):
         result_text = response.text.strip() if hasattr(response, 'text') else response.candidates[0].content.strip()
         
         if result_text in ["0", "1"]:
-            print(result_text)
             return int(result_text)
         else:
             print(f"Unexpected response from API: {result_text}")
@@ -40,9 +40,11 @@ def process_files(base_folder):
 
                 try:
                     result = analyze_filename_with_nlp(file)  # Analyze the filename
-                        
                     if result == 1:
-                        flagged_files.append((file, website))  # Store flagged filenames
+                        print(f"[CLASS_O>>>CHECK]: The File: {file} seems SUSPICIOUS. Flagging for Verification!")
+                        flagged_files.append((file, website))
+                    else:
+                        print(f"[CLASS_O>>>CHECK]: The File: {file} seems SAFE. Ignoring...")
                 except Exception as e:
                     print(f"Error processing {file_path}: {e}")
     
